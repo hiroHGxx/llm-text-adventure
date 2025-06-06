@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:;">
+    <meta name="theme-color" content="#000000">
+    <title>AIショートストーリーアドベンチャー</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // 拡張機能によるストレージアクセスを無効化
+        Object.defineProperty(window, 'localStorage', {
+            get: function() {
+                return {
+                    getItem: function() { return null; },
+                    setItem: function() { return null; },
+                    removeItem: function() { return null; },
+                    clear: function() { return null; }
+                };
+            },
+            configurable: false,
+            enumerable: false
+        });
+        
+        Object.defineProperty(window, 'sessionStorage', {
+            get: function() {
+                return {
+                    getItem: function() { return null; },
+                    setItem: function() { return null; },
+                    removeItem: function() { return null; },
+                    clear: function() { return null; }
+                };
+            },
+            configurable: false,
+            enumerable: false
+        });
+        
+        // 拡張機能のエラーを無視
+        window.addEventListener('error', function(e) {
+            if (e.message && e.message.includes('extension')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <div class="game-container">
+        <div id="background-placeholder"></div>
+        <div id="character-placeholder"></div>
+        <div id="story-display">
+            <div id="scene">ゲームを開始しています...</div>
+        </div>
+        <div id="choices-area" class="choices-container">
+            <!-- 選択肢はJavaScriptで動的に生成 -->
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
