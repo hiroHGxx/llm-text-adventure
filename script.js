@@ -1,10 +1,11 @@
 // ゲーム状態の管理
 const gameState = {
   currentScene: null,
-  history: [],
+  history: [],  // テキスト履歴（互換性のため保持）
   isProcessing: false,
-  turnCount: 0,  // ターンカウンターを追加
-  MAX_TURNS: 5  // 最大ターン数を定義
+  turnCount: 0,  // ターンカウンター
+  MAX_TURNS: 5,  // 最大ターン数
+  storyHistory: []  // プレイ履歴を記録する配列
 };
 
 // DOM要素の取得
@@ -24,9 +25,19 @@ function displayScene(sceneData, choices) {
   
   // 履歴に追加
   if (sceneData.text) {
+    // テキスト履歴（互換性のため保持）
     gameState.history.push(sceneData.text);
     
-    // 履歴が長すぎる場合は古いものから削除
+    // ストーリー履歴に追加
+    gameState.storyHistory.push({
+      type: 'story',
+      text: sceneData.text,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('Current story history:', gameState.storyHistory);
+    
+    // 履歴が長すぎる場合は古いものから削除（テキスト履歴のみ）
     if (gameState.history.length > 10) {
       gameState.history.shift();
     }
@@ -34,6 +45,13 @@ function displayScene(sceneData, choices) {
   
   // エンディングの場合は特別な処理
   if (sceneData.isEnding) {
+    // エンディングをストーリー履歴に追加
+    gameState.storyHistory.push({
+      type: 'ending',
+      text: 'エンディングに到達しました',
+      timestamp: new Date().toISOString()
+    });
+    console.log('Ending reached, final story history:', gameState.storyHistory);
     showEnding();
   }
 }
@@ -46,7 +64,10 @@ function showEnding() {
   restartButton.textContent = '最初から始める';
   restartButton.className = 'choice-btn';
   restartButton.addEventListener('click', () => {
+    // リセット時に履歴をクリア
     gameState.history = [];
+    gameState.storyHistory = [];
+    gameState.turnCount = 0;
     generateNewScene('restart');
   });
   
@@ -73,7 +94,16 @@ function updateChoices(choices) {
     const button = document.createElement('button');
     button.textContent = choice.text;
     button.className = 'choice-btn';
-    button.addEventListener('click', () => generateNewScene(choice.nextPrompt || choice.text));
+    button.addEventListener('click', () => {
+      // 選択した内容をストーリー履歴に追加
+      gameState.storyHistory.push({
+        type: 'choice',
+        text: choice.text,
+        timestamp: new Date().toISOString()
+      });
+      console.log('Choice made, story history:', gameState.storyHistory);
+      generateNewScene(choice.nextPrompt || choice.text);
+    });
     choicesArea.appendChild(button);
   });
 }
