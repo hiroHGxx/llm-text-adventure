@@ -49,6 +49,51 @@ function getDefaultScene() {
   };
 }
 
+// エンディング生成関数
+async function generateEnding(history = []) {
+  log('Generating ending with history:', { history });
+  
+  try {
+    const chat = model.startChat({
+      history: [
+        {
+          role: 'user',
+          parts: [{
+            text: `これまでの物語の展開を踏まえて、この冒険を締めくくる、感動的あるいは示唆に富んだ結末の文章を生成してください。
+            
+これまでのあらすじ:
+${history.join('\n')}
+
+以下のJSON形式で応答してください：
+{
+  "endingText": "ここに結末の文章を記述してください（200文字程度）"
+}`
+          }]
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 500,
+      },
+    });
+
+    const result = await chat.sendMessage('結末を生成してください');
+    const response = await result.response;
+    const text = response.text();
+    
+    // JSONをパース
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}') + 1;
+    const jsonString = text.substring(jsonStart, jsonEnd);
+    
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error('Error generating ending:', error);
+    return {
+      endingText: 'あなたの冒険は終わりを迎えました。素晴らしい旅でしたね。'
+    };
+  }
+}
+
 // ストーリー生成関数
 async function generateStory(prompt, history = []) {
   log('Generating story with prompt:', { prompt, history });
@@ -105,17 +150,18 @@ async function generateStory(prompt, history = []) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ミドルウェアの設定
+// CORS設定
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || '*',
+  origin: 'http://localhost:3000',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // プリフライトリクエストの処理
 app.options('*', cors());
 
-// ボディパーサー
+// リクエストボディのパース
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -211,6 +257,33 @@ app.post('/api/generate-scene', async (req, res) => {
   }
 });
 
+// エンディング生成用のエンドポイント
+app.post('/api/generate-ending', async (req, res) => {
+  const requestId = Date.now();
+  log(`[${requestId}] エンディング生成リクエスト受信`);
+  
+  try {
+    const { history = [] } = req.body;
+    
+    // エンディングを生成
+    const ending = await generateEnding(history);
+    
+    res.json({
+      success: true,
+      ...ending
+    });
+    
+  } catch (error) {
+    console.error(`[${requestId}] Error generating ending:`, error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'エンディングの生成中にエラーが発生しました',
+      requestId
+    });
+  }
+});
+
 // 404 ハンドラー
 app.use((req, res) => {
   res.status(404).json({
@@ -238,12 +311,14 @@ const server = app.listen(PORT, () => {
 
 // グレースフルシャットダウンの処理
 function shutdown() {
-  console.log('シャットダウンシグナルを受信しました。サーバーを終了します...');
+  console.log('シャットダウンシーケンスを開始します...');
+  
+  // 新しい接続の受け付けを停止
   server.close(() => {
-    console.log('サーバーが正常にシャットダウンしました');
+    console.log('すべての接続がクローズされました');
     process.exit(0);
   });
-
+  
   // 一定時間経過後に強制終了
   setTimeout(() => {
     console.error('強制終了します...');

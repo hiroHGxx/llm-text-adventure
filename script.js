@@ -2,7 +2,9 @@
 const gameState = {
   currentScene: null,
   history: [],
-  isProcessing: false
+  isProcessing: false,
+  turnCount: 0,  // ターンカウンターを追加
+  MAX_TURNS: 5  // 最大ターン数を定義
 };
 
 // DOM要素の取得
@@ -76,6 +78,76 @@ function updateChoices(choices) {
   });
 }
 
+// エンディングを生成
+async function generateEnding() {
+  try {
+    gameState.isProcessing = true;
+    if (loadingElement) loadingElement.style.display = 'block';
+    
+    console.log('Sending request to generate ending with history:', gameState.history);
+    const response = await fetch('http://localhost:3001/api/generate-ending', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        history: gameState.history
+      }),
+      credentials: 'include',
+      mode: 'cors'
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'エンディングの生成に失敗しました');
+    }
+    
+    // エンディングを表示
+    if (sceneElement) {
+      sceneElement.textContent = data.endingText;
+    }
+    
+    // 選択肢エリアをクリアして「おしまい」ボタンを表示
+    if (choicesArea) {
+      choicesArea.innerHTML = '';
+      const endButton = document.createElement('button');
+      endButton.textContent = '【おしまい】';
+      endButton.className = 'choice-btn';
+      endButton.onclick = () => {
+        gameState.history = [];
+        gameState.turnCount = 0;  // ターンカウンターをリセット
+        generateNewScene('restart');
+      };
+      choicesArea.appendChild(endButton);
+    }
+    
+  } catch (error) {
+    console.error('Error generating ending:', error);
+    if (sceneElement) {
+      sceneElement.textContent = 'エンディングの生成中にエラーが発生しました。';
+    }
+    
+    // エラー時もリスタートできるようにする
+    if (choicesArea) {
+      choicesArea.innerHTML = '';
+      const restartButton = document.createElement('button');
+      restartButton.textContent = '最初からやり直す';
+      restartButton.className = 'choice-btn';
+      restartButton.onclick = () => {
+        gameState.history = [];
+        gameState.turnCount = 0;  // ターンカウンターをリセット
+        generateNewScene('restart');
+      };
+      choicesArea.appendChild(restartButton);
+    }
+  } finally {
+    gameState.isProcessing = false;
+    if (loadingElement) loadingElement.style.display = 'none';
+  }
+}
+
 // 新しいシーンを生成
 async function generateNewScene(prompt) {
   console.log('generateNewScene called with prompt:', prompt);
@@ -83,6 +155,20 @@ async function generateNewScene(prompt) {
   if (gameState.isProcessing) {
     console.log('処理中です。しばらくお待ちください...');
     return;
+  }
+  
+  // リスタートまたは初期シーンの場合はターンカウンターをリセット
+  if (prompt === 'restart' || !gameState.currentScene) {
+    gameState.turnCount = 0;
+  } else {
+    // ターンカウンターをインクリメント
+    gameState.turnCount++;
+    
+    // 最大ターン数に達したらエンディングを生成
+    if (gameState.turnCount >= gameState.MAX_TURNS) {
+      await generateEnding();
+      return;
+    }
   }
   
   try {
@@ -174,6 +260,7 @@ async function generateNewScene(prompt) {
 // 初期化
 function init() {
   // ゲームを開始
+  gameState.turnCount = 0;  // ターンカウンターを初期化
   generateNewScene('物語を始めてください');
   
   // リスタートボタンがあればイベントを設定
@@ -181,6 +268,7 @@ function init() {
   if (restartButton) {
     restartButton.addEventListener('click', () => {
       gameState.history = [];
+      gameState.turnCount = 0;  // ターンカウンターをリセット
       generateNewScene('restart');
     });
   }
