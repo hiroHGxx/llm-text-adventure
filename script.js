@@ -60,6 +60,17 @@ function displayScene(sceneData, choices) {
 function showEnding() {
   if (!choicesArea) return;
   
+  // 選択肢エリアをクリア
+  choicesArea.innerHTML = '';
+  
+  // ボタンコンテナを作成
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.display = 'flex';
+  buttonContainer.style.flexDirection = 'column';
+  buttonContainer.style.gap = '10px';
+  buttonContainer.style.marginTop = '20px';
+  
+  // 最初から始めるボタン
   const restartButton = document.createElement('button');
   restartButton.textContent = '最初から始める';
   restartButton.className = 'choice-btn';
@@ -68,11 +79,60 @@ function showEnding() {
     gameState.history = [];
     gameState.storyHistory = [];
     gameState.turnCount = 0;
+    
+    // 小説生成UIを非表示に
+    const novelizationUI = document.getElementById('novelization-ui');
+    if (novelizationUI) {
+      novelizationUI.style.display = 'none';
+    }
+    
+    // テキストエリアをクリア
+    const novelOutput = document.getElementById('novelOutput');
+    if (novelOutput) {
+      novelOutput.value = '';
+    }
+    
+    // 選択肢エリアをクリア
+    if (choicesArea) {
+      choicesArea.innerHTML = '';
+    }
+    
     generateNewScene('restart');
   });
   
-  choicesArea.innerHTML = '';
-  choicesArea.appendChild(restartButton);
+  // 小説にするボタン
+  const novelizeButton = document.createElement('button');
+  novelizeButton.id = 'novelizeButton';
+  novelizeButton.textContent = 'この冒険を小説にする';
+  novelizeButton.className = 'choice-btn';
+  novelizeButton.style.marginTop = '10px';
+  novelizeButton.style.cursor = 'pointer';
+  
+  // ボタンコンテナにボタンを追加
+  buttonContainer.appendChild(restartButton);
+  buttonContainer.appendChild(novelizeButton);
+  
+  // 選択肢エリアにボタンコンテナを追加
+  choicesArea.appendChild(buttonContainer);
+  
+  // 小説生成UIを表示
+  const novelizationUI = document.getElementById('novelization-ui');
+  if (novelizationUI) {
+    novelizationUI.style.display = 'block';
+  }
+  
+  // 小説にするボタンがクリックされた時の処理
+  novelizeButton.addEventListener('click', () => {
+    console.log('小説生成ボタンがクリックされました');
+    generateNovel().catch(error => {
+      console.error('小説生成中にエラーが発生しました:', error);
+    });
+  });
+  
+  // エラーハンドリングを追加
+  window.addEventListener('error', (event) => {
+    console.error('グローバルエラーが発生しました:', event.error);
+  });
 }
 
 // 選択肢を更新
@@ -139,19 +199,15 @@ async function generateEnding() {
       sceneElement.textContent = data.endingText;
     }
     
-    // 選択肢エリアをクリアして「おしまい」ボタンを表示
-    if (choicesArea) {
-      choicesArea.innerHTML = '';
-      const endButton = document.createElement('button');
-      endButton.textContent = '【おしまい】';
-      endButton.className = 'choice-btn';
-      endButton.onclick = () => {
-        gameState.history = [];
-        gameState.turnCount = 0;  // ターンカウンターをリセット
-        generateNewScene('restart');
-      };
-      choicesArea.appendChild(endButton);
-    }
+    // エンディングをストーリー履歴に追加
+    gameState.storyHistory.push({
+      type: 'ending',
+      text: data.endingText,
+      timestamp: new Date().toISOString()
+    });
+    
+    // エンディングUIを表示
+    showEnding();
     
   } catch (error) {
     console.error('Error generating ending:', error);
@@ -304,5 +360,140 @@ function init() {
   }
 }
 
+// 小説を生成する関数
+async function generateNovel() {
+  console.log('generateNovel関数が呼び出されました');
+  
+  // 小説にするボタンをIDで取得
+  const novelizeButton = document.getElementById('novelizeButton');
+  const novelOutput = document.getElementById('novelOutput');
+  
+  console.log('novelizeButton:', novelizeButton);
+  console.log('novelOutput:', novelOutput);
+  
+  if (!novelizeButton || !novelOutput) {
+    const errorMsg = '必要な要素が見つかりません: ' + 
+      (!novelizeButton ? 'novelizeButton ' : '') + 
+      (!novelOutput ? 'novelOutput' : '');
+    console.error(errorMsg);
+    alert(errorMsg);
+    return;
+  }
+  
+  try {
+    console.log('小説生成を開始します...');
+    
+    // ボタンを無効化し、ローディングメッセージを表示
+    novelizeButton.disabled = true;
+    novelOutput.value = 'AIが小説を執筆中です...\nしばらくお待ちください...';
+    
+    // ストーリーログを整形
+    console.log('ストーリーログを整形中...');
+    const formattedLog = gameState.storyHistory.map(item => {
+      if (item.type === 'story') {
+        return `場面: ${item.text}`;
+      } else if (item.type === 'choice') {
+        return `あなたの選択: ${item.text}`;
+      } else if (item.type === 'ending') {
+        return `エンディング: ${item.text}`;
+      }
+      return '';
+    }).filter(Boolean).join('\n\n');
+    
+    console.log('フォーマット済みログ:', formattedLog);
+    
+    // プロンプトを作成
+    const prompt = `あなたは優れた小説家です。以下のログは、あるプレイヤーが体験したゲームの記録です。この記録を元に、情景描写や主人公の心情などを豊かに補い、一人称視点の読みやすいショートストーリーとして再構成してください。単なる記録の羅列ではなく、一貫した流れのある物語を執筆してください。
+
+ログ：
+${formattedLog}`;
+
+    console.log('APIリクエストを送信します...');
+    console.log('プロンプトの長さ:', prompt.length);
+    
+    const startTime = Date.now();
+    const response = await fetch('http://localhost:3001/api/generate-novel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      credentials: 'include',
+      mode: 'cors',
+      body: JSON.stringify({ prompt })
+    });
+
+    const endTime = Date.now();
+    console.log(`APIレスポンス受信 (${endTime - startTime}ms) ステータス:`, response.status);
+    
+    if (!response.ok) {
+      console.error('APIエラーレスポンス:', response);
+      let errorData;
+      try {
+        errorData = await response.json();
+        console.error('エラーデータ:', errorData);
+      } catch (e) {
+        console.error('エラーレスポンスの解析に失敗しました:', e);
+        throw new Error(`サーバーエラー: ${response.status} ${response.statusText}`);
+      }
+      throw new Error(errorData.error || '小説の生成に失敗しました');
+    }
+
+    const data = await response.json().catch(e => {
+      console.error('JSON解析エラー:', e);
+      throw new Error('無効なJSONレスポンスが返されました');
+    });
+    
+    console.log('APIレスポンスデータ:', data);
+    
+    if (data && data.success && data.novel) {
+      console.log('小説の生成に成功しました');
+      novelOutput.value = data.novel;
+    } else {
+      console.error('無効なレスポンス形式:', data);
+      throw new Error('小説の生成に失敗しました: 無効なレスポンス形式です');
+    }
+  } catch (error) {
+    console.error('小説生成エラー:', error);
+    novelOutput.value = 'エラーが発生しました: ' + error.message;
+  } finally {
+    novelizeButton.disabled = false;
+  }
+}
+
+// 小説生成UIを表示する関数
+function showNovelizationUI() {
+  const novelizationUI = document.getElementById('novelization-ui');
+  if (!novelizationUI) return;
+  
+  // UIを表示
+  novelizationUI.style.display = 'block';
+  
+  // 小説生成ボタンを取得
+  const novelizeButton = document.getElementById('novelizeButton');
+  if (!novelizeButton) return;
+  
+  // 既存のイベントリスナーを削除
+  const newButton = novelizeButton.cloneNode(true);
+  novelizeButton.parentNode.replaceChild(newButton, novelizeButton);
+  
+  // 新しいイベントリスナーを追加
+  newButton.addEventListener('click', generateNovel);
+  
+  // テキストエリアをクリア
+  const novelOutput = document.getElementById('novelOutput');
+  if (novelOutput) {
+    novelOutput.value = '';
+  }
+}
+
 // ドキュメントの読み込みが完了したら初期化
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  
+  // 小説生成ボタンにイベントリスナーを追加
+  const novelizeButton = document.getElementById('novelizeButton');
+  if (novelizeButton) {
+    novelizeButton.addEventListener('click', generateNovel);
+  }
+});

@@ -151,15 +151,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // CORS設定
-app.use(cors({
+const corsOptions = {
   origin: 'http://localhost:3000',
+  credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+  optionsSuccessStatus: 200
+};
 
-// プリフライトリクエストの処理
-app.options('*', cors());
+// CORSプリフライトリクエストの処理
+app.options('*', cors(corsOptions));
+
+// CORSミドルウェアの適用
+app.use(cors(corsOptions));
 
 // リクエストボディのパース
 app.use(express.json());
@@ -171,6 +175,16 @@ app.use(express.static(path.join(__dirname, '..')));
 // フロントエンドのルートにアクセスしたときの処理
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../index.html'));
+});
+
+// テスト用エンドポイント
+app.get('/api/test', (req, res) => {
+  console.log('テストエンドポイントが呼び出されました');
+  res.json({
+    success: true,
+    message: 'サーバーは正常に動作しています',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ヘルスチェック用エンドポイント
@@ -284,13 +298,60 @@ app.post('/api/generate-ending', async (req, res) => {
   }
 });
 
-// 404 ハンドラー
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: '指定されたエンドポイントは存在しません',
-    path: req.path
-  });
+// 小説生成用のエンドポイント
+app.post('/api/generate-novel', async (req, res) => {
+  const requestId = Date.now();
+  log(`[${requestId}] 小説生成リクエスト受信`);
+  
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'プロンプトが指定されていません'
+      });
+    }
+    
+    log(`[${requestId}] 小説生成を開始`);
+    
+    // Gemini APIを使用して小説を生成
+    const chat = model.startChat({
+      history: [
+        {
+          role: 'user',
+          parts: [{
+            text: prompt
+          }]
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 2000,
+        temperature: 0.7,
+      },
+    });
+
+    const result = await chat.sendMessage('以下のプロンプトに基づいて小説を生成してください。');
+    const response = await result.response;
+    const novelText = response.text();
+    
+    log(`[${requestId}] 小説生成完了`);
+    
+    res.json({
+      success: true,
+      novel: novelText
+    });
+    
+  } catch (error) {
+    console.error(`[${requestId}] 小説生成エラー:`, error);
+    
+    res.status(500).json({
+      success: false,
+      error: '小説の生成中にエラーが発生しました',
+      message: error.message,
+      requestId
+    });
+  }
 });
 
 // エラーハンドリングミドルウェア
@@ -309,17 +370,27 @@ const server = app.listen(PORT, () => {
   console.log(`API Base URL: http://localhost:${PORT}`);
 });
 
+// 404 ハンドラー
+app.use((req, res) => {
+  console.log(`404 Not Found: ${req.method} ${req.path}`);
+  res.status(404).json({
+    success: false,
+    error: '指定されたエンドポイントは存在しません',
+    path: req.path
+  });
+});
+
 // グレースフルシャットダウンの処理
 function shutdown() {
   console.log('シャットダウンシーケンスを開始します...');
   
   // 新しい接続の受け付けを停止
   server.close(() => {
-    console.log('すべての接続がクローズされました');
+    console.log('サーバーを停止しました');
     process.exit(0);
   });
   
-  // 一定時間経過後に強制終了
+  // タイムアウトを設定（強制終了）
   setTimeout(() => {
     console.error('強制終了します...');
     process.exit(1);
