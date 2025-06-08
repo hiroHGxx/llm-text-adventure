@@ -175,7 +175,7 @@ async function generateEnding() {
     if (loadingElement) loadingElement.style.display = 'block';
     
     console.log('Sending request to generate ending with history:', gameState.history);
-    const response = await fetch('http://localhost:3001/api/generate-ending', {
+    const response = await fetch('/api/generate-ending', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -412,7 +412,7 @@ ${formattedLog}`;
     console.log('プロンプトの長さ:', prompt.length);
     
     const startTime = Date.now();
-    const response = await fetch('http://localhost:3001/api/generate-novel', {
+    const response = await fetch('/api/generate-novel', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

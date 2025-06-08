@@ -2,10 +2,10 @@
   "name": "story-adventure-backend",
   "version": "1.0.0",
   "description": "Backend server for AI Story Adventure Game",
-  "main": "server.js",
+  "main": "generate-scene.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node generate-scene.js",
+    "dev": "nodemon generate-scene.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
