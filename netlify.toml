@@ -1,0 +1,13 @@
+# Netlify Functions (バックエンド) の設定
+[functions]
+  # バックエンドのNode.jsファイルが置かれているディレクトリを指定
+  directory = "server/"
+
+# リダイレクト（パスの書き換え）設定
+[[redirects]]
+  # ブラウザからの `/api/`で始まるリクエストを...
+  from = "/api/*"
+  # 実際のバックエンド関数のパスに書き換える
+  to = "/.netlify/functions/:splat"
+  # ステータスコード200は、これが内部的な転送であることを示す
+  status = 200
