@@ -1,3 +1,8 @@
+# ビルド設定
+[build]
+  publish = "."
+  command = ""  # ビルドコマンドを無効化
+
 # Netlify Functions (バックエンド) の設定
 [functions]
   # バックエンドのNode.jsファイルが置かれているディレクトリを指定
